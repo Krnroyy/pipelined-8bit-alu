@@ -33,4 +33,6 @@ iverilog -g2012 -s tb_alu8_pipeline_3stage \
     experiments/three_stage/tb_alu8_pipeline_3stage.sv
 vvp build/regression/three_stage_directed.vvp
 
+echo "=== formal equivalence: baseline vs shared ADD/SUB ==="
+yosys -Q -s scripts/check_shared_add_sub_equivalence.ys
 echo "PASS: regression completed for all five ALU variants"

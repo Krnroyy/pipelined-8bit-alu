@@ -133,3 +133,7 @@ bash scripts/run_regression.sh
 ```
 
 The script checks all five ALU variants. It runs directed/random and exhaustive 524,288-case all-opcode tests for the four one-cycle variants, plus directed/random tests for the two-cycle three-stage variant. It requires Icarus Verilog (iverilog and vvp). Generated simulation files are written under build/regression/, which Git ignores.
+
+## Formal equivalence
+
+Yosys 0.52 proved all 43 equivalence points between the baseline and shared ADD/SUB ALU, with zero unproven points. The check covers the outputs and matched pipeline state. It runs `async2sync` on both designs, so reset behavior is compared using the same synchronous formal model. Run it from the project root with `yosys -Q -s scripts/check_shared_add_sub_equivalence.ys`. The regression script and GitHub Actions run this proof alongside simulation.

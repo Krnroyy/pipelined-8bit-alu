@@ -1,0 +1,20 @@
+read_verilog -formal -sv rtl/alu8_pipeline.sv
+prep -top alu8_pipeline
+async2sync
+opt
+design -stash gold
+
+design -reset
+read_verilog -formal -sv experiments/shared_add_sub/alu8_pipeline.sv
+prep -top alu8_pipeline
+async2sync
+opt
+design -stash gate
+
+design -copy-from gold -as gold alu8_pipeline
+design -copy-from gate -as gate alu8_pipeline
+equiv_make gold gate equiv
+hierarchy -top equiv
+equiv_simple
+equiv_induct -seq 4
+equiv_status -assert
