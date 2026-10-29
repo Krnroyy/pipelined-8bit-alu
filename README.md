@@ -132,4 +132,4 @@ From the project root in WSL Ubuntu, run:
 bash scripts/run_regression.sh
 ```
 
-The script runs directed/random and exhaustive 131,072-case ADD/SUB checks for the baseline and shared ADD/SUB candidate. It requires Icarus Verilog (iverilog and vvp). Generated simulation files are written under build/regression/, which Git ignores.
+The script checks all five ALU variants. It runs directed/random and exhaustive 131,072-case ADD/SUB tests for the four one-cycle variants, plus directed/random tests for the two-cycle three-stage variant. It requires Icarus Verilog (iverilog and vvp). Generated simulation files are written under build/regression/, which Git ignores.
