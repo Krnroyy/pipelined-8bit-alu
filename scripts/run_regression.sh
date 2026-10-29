@@ -14,10 +14,10 @@ run_single_cycle_variant() {
         "$rtl" tb/tb_alu8_pipeline.sv
     vvp "build/regression/${name}_directed.vvp"
 
-    echo "=== $name: exhaustive ADD/SUB regression ==="
-    iverilog -g2012 -s tb_alu8_addsub_exhaustive \
+    echo "=== $name: exhaustive all-opcode regression ==="
+    iverilog -g2012 -s tb_alu8_exhaustive \
         -o "build/regression/${name}_exhaustive.vvp" \
-        "$rtl" experiments/shared_add_sub/tb_alu8_addsub_exhaustive.sv
+        "$rtl" experiments/tb_alu8_exhaustive.sv
     vvp "build/regression/${name}_exhaustive.vvp"
 }
 
