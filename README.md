@@ -132,7 +132,7 @@ From the project root in WSL Ubuntu, run:
 bash scripts/run_regression.sh
 ```
 
-The script checks all five ALU variants. It runs directed/random and exhaustive 524,288-case all-opcode tests for the four one-cycle variants, plus directed/random tests for the two-cycle three-stage variant. It requires Icarus Verilog (iverilog and vvp). Generated simulation files are written under build/regression/, which Git ignores.
+The script checks all five ALU variants. It runs directed/random and exhaustive 524,288-case all-opcode tests for the four one-cycle variants and the two-cycle three-stage variant. The three-stage exhaustive test also checks response ordering, two-cycle latency, and one-request-per-cycle throughput across the full stream. It requires Icarus Verilog (iverilog and vvp). Generated simulation files are written under build/regression/, which Git ignores.
 
 ## Formal equivalence
 

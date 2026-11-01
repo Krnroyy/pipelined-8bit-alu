@@ -11,6 +11,7 @@ Implemented a two-stage, 8-bit SystemVerilog ALU with one-cycle response latency
 ## Verification evidence
 
 - Icarus Verilog: 14 directed checks and 64 consecutive pseudo-random requests passed.
+- Exhaustive all-opcode tests cover 524,288 combinations for each one-cycle candidate; the regression now includes the same full sweep for the two-cycle three-stage candidate.
 - Exhaustive arithmetic: all 131,072 ADD/SUB operand pairs passed.
 - Yosys formal equivalence: all 43 equivalence points for the shared ADD/SUB implementation were proven.
 - Vivado UVM 1.2: 121 responses checked; 40 idle cycles; 2 reset pulses; 1 in-flight request flushed by reset; 100% opcode/flag cross coverage; zero warnings, errors, or fatals on the clean baseline.
