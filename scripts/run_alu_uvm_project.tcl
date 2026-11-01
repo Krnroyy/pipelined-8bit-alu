@@ -17,7 +17,6 @@ set_property simulator_language Mixed [current_project]
 add_files -fileset sim_1 -norecurse $rtl_file
 add_files -fileset sim_1 -norecurse $uvm_file
 set_property top alu_uvm_top [get_filesets sim_1]
-set_property xsim.elaborate.xelab.more_options {-L uvm} [get_filesets sim_1]
 update_compile_order -fileset sim_1
 
 puts "Launching UVM 1.2 test with Vivado integrated simulation..."
