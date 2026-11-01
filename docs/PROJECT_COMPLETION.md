@@ -2,7 +2,8 @@
 
 **Repository:** [Krnroyy/pipelined-8bit-alu](https://github.com/Krnroyy/pipelined-8bit-alu)  
 **Status:** Verification and implementation experiments complete  
-**Latest pushed commit:** `939d059` — Vivado UVM project setup fix
+**Latest pushed commit:** `f439b6e` — exhaustive three-stage ALU verification
+**Release:** [v1.0.0](https://github.com/Krnroyy/pipelined-8bit-alu/releases/tag/v1.0.0)
 
 ## Design
 
@@ -19,6 +20,13 @@ Implemented a two-stage, 8-bit SystemVerilog ALU with one-cycle response latency
 - GitHub Actions: the workflow for commit `939d059` completed successfully.
 
 ## Routed SKY130HD estimates
+
+The physical implementation used OpenROAD Flow Scripts (ORFS), combining Yosys
+RTL synthesis with OpenROAD floorplanning, placement, clock-tree synthesis, and
+routing. SKY130HD supplied the 130 nm high-density standard-cell library and
+technology views used for mapping, physical implementation, and timing/area
+estimation. The flow generated GDSII for this educational design; the results
+are not silicon measurements or production foundry signoff.
 
 Runs used a 3.0 ns clock target and 1.2 ns input/output delays. These are OpenROAD-flow estimates, not silicon measurements.
 

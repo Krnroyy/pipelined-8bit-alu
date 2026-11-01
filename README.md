@@ -49,6 +49,27 @@ This is a learning flow. SKY130's published PDK documentation describes its
 current release as an experimental preview; these results are not production
 signoff.
 
+The project is published as [release v1.0.0](https://github.com/Krnroyy/pipelined-8bit-alu/releases/tag/v1.0.0).
+
+## Physical-design tools and process
+
+OpenROAD is open-source software for digital physical design. This project used
+OpenROAD Flow Scripts (ORFS), which coordinates the RTL-to-layout steps and
+integrates Yosys synthesis with OpenROAD implementation tools. Yosys mapped the
+SystemVerilog design into standard cells; OpenROAD performed floorplanning,
+placement, clock-tree synthesis, and routing before the flow wrote GDSII layout
+data.
+
+SKY130HD is the high-density standard-cell platform for the SkyWater 130 nm
+process. Its standard-cell library provides the logic and flip-flop cells, and
+its timing and physical views let the tools estimate area and timing and build
+the layout. Here, “HD” means high density; SKY130HD is a technology/library,
+while OpenROAD is part of the implementation toolchain.
+
+The flow generated final GDSII for this educational design, but the ALU was not
+fabricated and these runs are not foundry signoff. The reported area and timing
+are tool estimates under the documented constraints.
+
 ## OpenROAD timing sweep
 
 The ALU was implemented with ORFS using the SKY130HD platform. Each run used
