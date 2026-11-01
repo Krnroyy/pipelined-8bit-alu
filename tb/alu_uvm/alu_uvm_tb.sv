@@ -25,6 +25,7 @@ package alu_uvm_pkg;
         rand bit [2:0] op;
         rand bit [7:0] a;
         rand bit [7:0] b;
+        bit            reset;
 
         bit [7:0] result;
         bit       zero;
@@ -36,6 +37,7 @@ package alu_uvm_pkg;
             `uvm_field_int(op,       UVM_DEFAULT)
             `uvm_field_int(a,        UVM_DEFAULT)
             `uvm_field_int(b,        UVM_DEFAULT)
+            `uvm_field_int(reset,    UVM_DEFAULT)
             `uvm_field_int(result,   UVM_DEFAULT)
             `uvm_field_int(zero,     UVM_DEFAULT)
             `uvm_field_int(carry,    UVM_DEFAULT)
@@ -66,25 +68,65 @@ package alu_uvm_pkg;
             finish_item(tr);
         endtask
 
+        task automatic send_idle(int unsigned cycles = 1);
+            repeat (cycles) begin
+                alu_txn tr = alu_txn::type_id::create("idle_item");
+                start_item(tr);
+                tr.reset = 1'b0;
+                tr.valid = 1'b0;
+                tr.op = '0;
+                tr.a = '0;
+                tr.b = '0;
+                finish_item(tr);
+            end
+        endtask
+
+        task automatic send_reset_pulse();
+            alu_txn tr = alu_txn::type_id::create("reset_item");
+            start_item(tr);
+            tr.reset = 1'b1;
+            tr.valid = 1'b0;
+            tr.op = '0;
+            tr.a = '0;
+            tr.b = '0;
+            finish_item(tr);
+        endtask
+
         task body();
             // Arithmetic carry, borrow, signed overflow, and zero cases.
             send_directed(3'd0, 8'hff, 8'h01);
             send_directed(3'd0, 8'h7f, 8'h01);
             send_directed(3'd0, 8'h00, 8'h00);
+            send_directed(3'd0, 8'h80, 8'h80);
             send_directed(3'd1, 8'h09, 8'h04);
             send_directed(3'd1, 8'h03, 8'h05);
             send_directed(3'd1, 8'h80, 8'h01);
+            send_directed(3'd1, 8'h7f, 8'hff);
             send_directed(3'd1, 8'h55, 8'h55);
 
             // Logical operations, shifts by zero, and shifts by seven.
             send_directed(3'd2, 8'hf0, 8'h0f);
+            send_directed(3'd2, 8'hf0, 8'hf0);
+            send_directed(3'd3, 8'h00, 8'h00);
             send_directed(3'd3, 8'h80, 8'h01);
             send_directed(3'd4, 8'ha5, 8'ha5);
+            send_directed(3'd4, 8'h01, 8'h00);
             send_directed(3'd5, 8'h81, 8'h00);
             send_directed(3'd5, 8'h81, 8'h07);
+            send_directed(3'd5, 8'h00, 8'h07);
+            send_directed(3'd5, 8'h03, 8'h07);
             send_directed(3'd6, 8'h81, 8'h00);
             send_directed(3'd6, 8'h81, 8'h07);
+            send_directed(3'd6, 8'h00, 8'h07);
+            send_directed(3'd6, 8'hc0, 8'h07);
             send_directed(3'd7, 8'hff, 8'hff);
+
+            // Exercise bubbles, then reset with one request still in flight.
+            send_idle(3);
+            send_directed(3'd0, 8'h12, 8'h34);
+            send_reset_pulse();
+            send_idle(3);
+            send_directed(3'd0, 8'h02, 8'h03);
 
             // Mixed continuous and bubbled traffic, still one item per cycle.
             repeat (128) begin
@@ -120,23 +162,30 @@ package alu_uvm_pkg;
             vif.in_b = '0;
             forever begin
                 @(negedge vif.clk);
-                if (!vif.rst_n) begin
+                req = null;
+                seq_item_port.try_next_item(req);
+                if (req != null) begin
+                    if (req.reset) begin
+                        vif.rst_n <= 1'b0;
+                        vif.in_valid <= 1'b0;
+                        vif.in_op <= '0;
+                        vif.in_a <= '0;
+                        vif.in_b <= '0;
+                    end else begin
+                        vif.rst_n <= 1'b1;
+                        vif.in_valid <= req.valid;
+                        vif.in_op <= req.op;
+                        vif.in_a <= req.a;
+                        vif.in_b <= req.b;
+                    end
+                    seq_item_port.item_done();
+                end else if (!vif.rst_n) begin
                     vif.in_valid <= 1'b0;
                     vif.in_op <= '0;
                     vif.in_a <= '0;
                     vif.in_b <= '0;
                 end else begin
-                    req = null;
-                    seq_item_port.try_next_item(req);
-                    if (req != null) begin
-                        vif.in_valid <= req.valid;
-                        vif.in_op <= req.op;
-                        vif.in_a <= req.a;
-                        vif.in_b <= req.b;
-                        seq_item_port.item_done();
-                    end else begin
-                        vif.in_valid <= 1'b0;
-                    end
+                    vif.in_valid <= 1'b0;
                 end
             end
         endtask
@@ -148,6 +197,7 @@ package alu_uvm_pkg;
         uvm_analysis_port #(alu_txn) req_ap;
         uvm_analysis_port #(alu_txn) rsp_ap;
         bit previous_input_valid;
+        bit previous_reset_active;
 
         function new(string name, uvm_component parent);
             super.new(name, parent);
@@ -164,25 +214,38 @@ package alu_uvm_pkg;
         task run_phase(uvm_phase phase);
             alu_txn tr;
             previous_input_valid = 1'b0;
+            previous_reset_active = 1'b0;
             forever begin
                 @(posedge vif.clk);
                 #1ps; // Observe registered DUT outputs after nonblocking assignments.
                 if (!vif.rst_n) begin
+                    if ({vif.out_valid, vif.out_result, vif.out_zero,
+                         vif.out_carry, vif.out_overflow} !== '0)
+                        `uvm_error("RESET", "ALU outputs did not clear while reset was asserted")
+                    if (!previous_reset_active) begin
+                        tr = alu_txn::type_id::create("observed_reset");
+                        tr.reset = 1'b1;
+                        tr.valid = 1'b0;
+                        req_ap.write(tr);
+                    end
                     previous_input_valid = 1'b0;
+                    previous_reset_active = 1'b1;
                 end else begin
+                    previous_reset_active = 1'b0;
                     if (vif.out_valid !== previous_input_valid)
                         `uvm_error("LATENCY", $sformatf(
                             "Expected out_valid=%0b one cycle after in_valid; got %0b",
                             previous_input_valid, vif.out_valid))
 
+                    tr = alu_txn::type_id::create("observed_request");
+                    tr.reset = 1'b0;
+                    tr.valid = vif.in_valid;
                     if (vif.in_valid) begin
-                        tr = alu_txn::type_id::create("observed_request");
-                        tr.valid = vif.in_valid;
                         tr.op = vif.in_op;
                         tr.a = vif.in_a;
                         tr.b = vif.in_b;
-                        req_ap.write(tr);
                     end
+                    req_ap.write(tr);
 
                     if (vif.out_valid) begin
                         tr = alu_txn::type_id::create("observed_response");
@@ -229,6 +292,8 @@ package alu_uvm_pkg;
         bit [7:0] seen_ops;
         int unsigned checked_count;
         int unsigned dropped_count;
+        int unsigned reset_count;
+        int unsigned idle_count;
 
         bit [2:0] cov_op;
         bit cov_zero, cov_carry, cov_overflow;
@@ -237,6 +302,18 @@ package alu_uvm_pkg;
             cp_zero: coverpoint cov_zero { bins zero = {1}; bins nonzero = {0}; }
             cp_carry: coverpoint cov_carry { bins carry = {1}; bins no_carry = {0}; }
             cp_overflow: coverpoint cov_overflow { bins overflow = {1}; bins no_overflow = {0}; }
+            x_op_zero: cross cp_op, cp_zero {
+                ignore_bins reserved_nonzero =
+                    binsof(cp_op) intersect {7} && binsof(cp_zero) intersect {0};
+            }
+            x_op_carry: cross cp_op, cp_carry {
+                ignore_bins impossible_carry =
+                    binsof(cp_op) intersect {2, 3, 4, 7} && binsof(cp_carry) intersect {1};
+            }
+            x_op_overflow: cross cp_op, cp_overflow {
+                ignore_bins impossible_overflow =
+                    binsof(cp_op) intersect {2, 3, 4, 5, 6, 7} && binsof(cp_overflow) intersect {1};
+            }
         endgroup
 
         function new(string name, uvm_component parent);
@@ -247,6 +324,8 @@ package alu_uvm_pkg;
             seen_ops = '0;
             checked_count = 0;
             dropped_count = 0;
+            reset_count = 0;
+            idle_count = 0;
         endfunction
 
         function void model(alu_txn tr);
@@ -292,6 +371,16 @@ package alu_uvm_pkg;
 
         function void write_req(alu_txn tr);
             alu_txn exp;
+            if (tr.reset) begin
+                reset_count++;
+                dropped_count += expected_q.size();
+                expected_q.delete();
+                return;
+            end
+            if (!tr.valid) begin
+                idle_count++;
+                return;
+            end
             exp = alu_txn::type_id::create("expected_response");
             exp.op = tr.op;
             exp.a = tr.a;
@@ -330,14 +419,18 @@ package alu_uvm_pkg;
         function void check_all_opcodes();
             if (seen_ops !== 8'hff)
                 `uvm_error("COVERAGE", $sformatf("Not all opcodes were observed; mask=%02h", seen_ops))
+            if (alu_cg.get_coverage() < 100.0)
+                `uvm_error("COVERAGE", $sformatf("Opcode/flag cross coverage is %.1f%%, expected 100%%", alu_cg.get_coverage()))
             else
-                `uvm_info("COVERAGE", $sformatf("All opcode bins hit; flag coverage %.1f%%", alu_cg.get_coverage()), UVM_LOW)
+                `uvm_info("COVERAGE", $sformatf("Opcode and valid flag cross coverage %.1f%%", alu_cg.get_coverage()), UVM_LOW)
         endfunction
 
         function void report_phase(uvm_phase phase);
             super.report_phase(phase);
-            `uvm_info("SUMMARY", $sformatf("Responses checked=%0d, pending=%0d, coverage=%.1f%%",
-                checked_count, expected_q.size(), alu_cg.get_coverage()), UVM_NONE)
+            `uvm_info("SUMMARY", $sformatf(
+                "Responses checked=%0d, pending=%0d, idle cycles=%0d, reset pulses=%0d, requests flushed by reset=%0d, coverage=%.1f%%",
+                checked_count, expected_q.size(), idle_count, reset_count, dropped_count,
+                alu_cg.get_coverage()), UVM_NONE)
         endfunction
     endclass
 
@@ -391,10 +484,16 @@ package alu_uvm_pkg;
                 `uvm_error("DRAIN", $sformatf("Scoreboard still has %0d requests pending", env.scb.pending_count()))
             if (env.scb.checked_count == 0)
                 `uvm_error("DRAIN", "No responses were checked")
+            if (env.scb.idle_count < 3)
+                `uvm_error("IDLE", $sformatf("Expected at least 3 idle cycles; observed %0d", env.scb.idle_count))
+            if (env.scb.reset_count < 2)
+                `uvm_error("RESET", $sformatf("Expected startup and mid-test reset pulses; observed %0d", env.scb.reset_count))
+            if (env.scb.dropped_count < 1)
+                `uvm_error("RESET", "Mid-test reset did not flush an in-flight request")
             env.scb.check_all_opcodes();
             if (uvm_report_server::get_server().get_severity_count(UVM_ERROR) != 0)
                 `uvm_fatal("TEST", "UVM test completed with one or more errors")
-            `uvm_info("PASS", "UVM ALU test passed: latency, results, flags, and opcode coverage checked", UVM_NONE)
+            `uvm_info("PASS", "UVM ALU test passed: results, flags, latency, idle cycles, reset recovery, and opcode/flag cross coverage checked", UVM_NONE)
             phase.drop_objection(this);
         endtask
     endclass
